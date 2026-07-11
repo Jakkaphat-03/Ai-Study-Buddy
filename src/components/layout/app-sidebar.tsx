@@ -1,0 +1,10 @@
+"use client";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { BookOpen, BrainCircuit, FileText, LayoutDashboard, Layers3, MessageSquareText, UserRound } from "lucide-react";
+import { Logo } from "@/components/common/logo";
+import { Avatar } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
+export const navigationItems = [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }, { href: "/documents", label: "Documents", icon: FileText }, { href: "/summary", label: "Summary", icon: BookOpen }, { href: "/chat", label: "AI Chat", icon: MessageSquareText }, { href: "/quiz", label: "Quiz", icon: BrainCircuit }, { href: "/flashcards", label: "Flashcards", icon: Layers3 }];
+export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) { const pathname = usePathname(); return <aside className="flex h-full w-72 flex-col border-r border-white/10 bg-slate-950/70 p-5 backdrop-blur-xl"><Logo /><nav className="mt-10 flex flex-1 flex-col gap-1" aria-label="Primary navigation">{navigationItems.map(({ href, label, icon: Icon }) => <Link key={href} href={href} onClick={onNavigate} className={cn("flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition", pathname === href ? "bg-emerald-300/10 text-emerald-200" : "text-slate-400 hover:bg-white/[0.05] hover:text-white")}><Icon className="size-[18px]" aria-hidden="true" />{label}</Link>)}</nav><Separator /><Link href="/profile" onClick={onNavigate} className={cn("mt-4 flex items-center gap-3 rounded-xl p-2 transition hover:bg-white/[0.05]", pathname === "/profile" && "bg-emerald-300/10")}><Avatar initials="AS" /><span className="min-w-0 text-sm"><span className="block truncate font-medium text-slate-100">Student profile</span><span className="block truncate text-xs text-slate-500">Profile settings</span></span><UserRound className="ml-auto size-4 text-slate-500" aria-hidden="true" /></Link></aside>; }

@@ -13,9 +13,14 @@
     --primary-foreground: 222 47% 6%;
     --muted: 217 33% 17%;
     --muted-foreground: 215 20% 65%;
+    --accent: 188 86% 53%;
+    --accent-foreground: 222 47% 6%;
+    --ring: 188 86% 53%;
     --radius: 0.875rem;
   }
 
   * { @apply border-border; }
+  html { @apply bg-background; }
   body { @apply min-h-screen bg-background text-foreground antialiased; }
+  ::selection { @apply bg-cyan-300/30 text-white; }
 }
