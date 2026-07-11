@@ -1,6 +1,7 @@
 import { MotionReveal } from "@/components/common/motion-reveal";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
+import Link from "next/link";
 import { ArrowRight, BrainCircuit, FileText, Layers3, MessageSquareText } from "lucide-react";
 
 const features = [
@@ -33,9 +34,9 @@ export default function HomePage() {
           </p>
         </MotionReveal>
         <MotionReveal delay={0.24}>
-          <a id="get-started" href="#features" className="mt-10 inline-flex items-center gap-2 rounded-full bg-emerald-400 px-6 py-3.5 font-semibold text-slate-950 shadow-xl shadow-emerald-500/20 transition hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:ring-offset-2 focus:ring-offset-slate-950">
+          <Link id="get-started" href="/register" className="mt-10 inline-flex items-center gap-2 rounded-full bg-emerald-400 px-6 py-3.5 font-semibold text-slate-950 shadow-xl shadow-emerald-500/20 transition hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:ring-offset-2 focus:ring-offset-slate-950">
             Start learning smarter <ArrowRight className="size-4" aria-hidden="true" />
-          </a>
+          </Link>
         </MotionReveal>
       </section>
 
