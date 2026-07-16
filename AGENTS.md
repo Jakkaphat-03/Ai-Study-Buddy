@@ -1,4 +1,4 @@
-# AI Study Buddy - Project Constitution
+# AI Study Buddy - Project Constitution (AGENTS.md)
 
 ## Project Overview
 
@@ -60,9 +60,7 @@ Deployment
 - User Authentication
 - Document Upload
 - AI Summary
-- AI Chat
 - Quiz Generator
-- Flashcards
 - Image Analysis
 - Learning History
 
