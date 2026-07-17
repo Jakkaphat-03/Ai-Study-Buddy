@@ -13,7 +13,7 @@ const DIFFICULTY_COLORS: Record<string, string> = {
 
 function ScoreBadge({ score, total }: { score: number | null; total: number | null }) {
   if (score === null || total === null) {
-    return <p className="text-xs text-slate-500">ยังไม่ได้ทำ</p>;
+    return <p className="text-xs text-slate-500">Not attempted</p>; // ← แก้
   }
 
   const pct = Math.round((score / total) * 100);
@@ -35,7 +35,6 @@ function ScoreBadge({ score, total }: { score: number | null; total: number | nu
 export function HistoryQuizCard({ quiz }: Props) {
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-white/10 bg-slate-900/40 p-4 transition hover:border-white/20 sm:flex-row sm:items-center sm:justify-between">
-      {/* Quiz info */}
       <div className="flex min-w-0 items-start gap-3">
         <div className="mt-0.5 rounded-lg bg-cyan-300/10 p-2 text-cyan-300">
           <BrainCircuit className="size-4" />
