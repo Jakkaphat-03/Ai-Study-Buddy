@@ -111,7 +111,7 @@ export default async function HistoryPage() {
         </h1>
 
         <p className="mt-2 text-slate-400">
-          ทบทวนเอกสาร สรุป และข้อสอบที่คุณเคยสร้างไว้ทั้งหมด
+          Review all your uploaded documents, summaries, and quizzes.
         </p>
       </section>
 
@@ -141,7 +141,7 @@ export default async function HistoryPage() {
           </CardTitle>
 
           <CardDescription>
-            เลือก tab เพื่อดูประวัติแต่ละประเภท
+            Select a tab to browse your activity by type.
           </CardDescription>
         </CardHeader>
 
