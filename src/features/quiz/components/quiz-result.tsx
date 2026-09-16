@@ -8,7 +8,7 @@ import type { Quiz, QuizQuestion } from "@/features/quiz/types/quiz";
 
 type Props = {
   quiz: Quiz;
-  quizId: string; // ← เพิ่ม
+  quizId: string;
   onRetry: () => void;
 };
 

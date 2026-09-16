@@ -1,38 +1,52 @@
 import { NextResponse } from "next/server";
 
+import { aiError, serverError } from "@/lib/api-error";
+import { rateLimitResponse } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { generateSummary } from "@/features/summary/services/generate-summary";
-import type { SummaryType } from "@/features/summary/services/prompts";
+import { generateSummarySchema } from "@/features/summary/schemas/summary-schema";
 
 export async function POST(request: Request) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const limited = rateLimitResponse("summary", user.id);
+
+  if (limited) return limited;
+
+  let body: unknown;
+
   try {
-    const supabase = await createClient();
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+  const parsed = generateSummarySchema.safeParse(body);
 
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Invalid request." },
+      { status: 400 },
+    );
+  }
 
-    const body = await request.json();
+  const { documentId, summaryType } = parsed.data;
 
-    const documentId = body.documentId as string;
-    const summaryType = body.summaryType as SummaryType;
-
-    if (!documentId || !summaryType) {
-      return NextResponse.json(
-        { error: "Missing required fields." },
-        { status: 400 },
-      );
-    }
-
+  try {
     const { data: document, error: documentError } = await supabase
       .from("documents")
       .select("id, user_id, extracted_text")
       .eq("id", documentId)
+      .eq("user_id", user.id)
       .single();
 
     if (documentError || !document) {
@@ -40,10 +54,6 @@ export async function POST(request: Request) {
         { error: "Document not found." },
         { status: 404 },
       );
-    }
-
-    if (document.user_id !== user.id) {
-      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     }
 
     if (!document.extracted_text?.trim()) {
@@ -62,11 +72,11 @@ export async function POST(request: Request) {
         summary_type: summaryType,
         content: summary,
       })
-      .select()
+      .select("content")
       .single();
 
     if (insertError) {
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
+      return serverError("summary:insert", insertError);
     }
 
     return NextResponse.json({
@@ -74,18 +84,6 @@ export async function POST(request: Request) {
       summary: savedSummary.content,
     });
   } catch (error) {
-    console.error("========== SUMMARY ERROR ==========");
-    console.error(error);
-    console.error("===================================");
-
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Unexpected server error.",
-      },
-      {
-        status: 500,
-      },
-    );
+    return aiError("summary", error);
   }
 }

@@ -1,81 +1,75 @@
 import { NextResponse } from "next/server";
 
+import { aiError } from "@/lib/api-error";
+import { rateLimitResponse } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
+import { chatRequestSchema } from "@/features/chat/schemas/chat-schema";
 import { generateChatResponse } from "@/features/chat/services/generate-chat";
-import type { ChatMessage } from "@/features/chat/types/chat";
 
 export async function POST(request: Request) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const limited = rateLimitResponse("chat", user.id);
+
+  if (limited) return limited;
+
+  let body: unknown;
+
   try {
-    const supabase = await createClient();
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+  const parsed = chatRequestSchema.safeParse(body);
 
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Invalid request." },
+      { status: 400 },
+    );
+  }
 
-    const body = await request.json();
+  const { documentId, question, messages } = parsed.data;
 
-    const documentId = body.documentId as string;
-    const messages = body.messages as ChatMessage[];
-    const question = body.question as string;
-
-    if (!documentId || !question) {
-      return NextResponse.json(
-        { error: "Missing required fields." },
-        { status: 400 },
-      );
-    }
-
-    // Fetch summary and verify ownership
+  try {
+    // Ownership is enforced through the parent document, on top of RLS.
     const { data: summary, error: summaryError } = await supabase
       .from("summaries")
-      .select("id, content, document_id, documents(user_id)")
+      .select("id, content, document_id, documents!inner(user_id)")
       .eq("document_id", documentId)
+      .eq("documents.user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(1)
       .single();
 
     if (summaryError || !summary) {
       return NextResponse.json(
-        { error: "No summary found for this document. Please generate a summary first." },
+        {
+          error:
+            "No summary found for this document. Please generate a summary first.",
+        },
         { status: 404 },
       );
     }
 
-    const documentOwner = (
-      summary.documents as unknown as { user_id: string }
-    )?.user_id;
-
-    if (documentOwner !== user.id) {
-      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
-    }
-
-    // Generate chat response
     const answer = await generateChatResponse(
       summary.content,
-      messages ?? [],
+      messages,
       question,
     );
 
-    return NextResponse.json({
-      success: true,
-      answer,
-    });
+    return NextResponse.json({ success: true, answer });
   } catch (error) {
-    console.error("========== CHAT ERROR ==========");
-    console.error(error);
-    console.error("================================");
-
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Unexpected server error.",
-      },
-      { status: 500 },
-    );
+    return aiError("chat", error);
   }
 }

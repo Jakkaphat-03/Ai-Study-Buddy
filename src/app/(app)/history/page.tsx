@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { History } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +17,10 @@ export default async function HistoryPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  if (!user) {
+    redirect("/login");
+  }
+
   // ── Documents ──────────────────────────────────────────────────────────────
   const { data: documentRows } = await supabase
     .from("documents")
@@ -27,7 +32,7 @@ export default async function HistoryPage() {
       created_at,
       summaries(count)
     `)
-    .eq("user_id", user!.id)
+    .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
   const documents: HistoryDocument[] = (documentRows ?? []).map((doc) => ({
@@ -49,16 +54,12 @@ export default async function HistoryPage() {
       content,
       created_at,
       document_id,
-      documents(file_name, user_id)
+      documents!inner(file_name)
     `)
+    .eq("documents.user_id", user.id)
     .order("created_at", { ascending: false });
 
   const summaries: HistorySummary[] = (summaryRows ?? [])
-    .filter(
-      (row) =>
-        row.documents !== null &&
-        (row.documents as unknown as { user_id: string }).user_id === user!.id,
-    )
     .map((row) => ({
       id: row.id,
       summary_type: row.summary_type,
@@ -79,16 +80,12 @@ export default async function HistoryPage() {
       total,
       created_at,
       document_id,
-      documents(file_name, user_id)
+      documents!inner(file_name)
     `)
+    .eq("documents.user_id", user.id)
     .order("created_at", { ascending: false });
 
   const quizzes: HistoryQuiz[] = (quizRows ?? [])
-    .filter(
-      (row) =>
-        row.documents !== null &&
-        (row.documents as unknown as { user_id: string }).user_id === user!.id,
-    )
     .map((row) => ({
       id: row.id,
       difficulty: row.difficulty,

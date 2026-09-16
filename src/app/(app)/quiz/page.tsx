@@ -1,6 +1,7 @@
 // src/app/(app)/quiz/page.tsx
 
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { BrainCircuit } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,10 @@ export default async function QuizPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  if (!user) {
+    redirect("/login");
+  }
+
   // Fetch all summaries belonging to this user (via documents)
   const { data: rows } = await supabase
     .from("summaries")
@@ -29,17 +34,13 @@ export default async function QuizPage() {
       id,
       summary_type,
       created_at,
-      documents(file_name, user_id)
+      documents!inner(file_name)
     `,
     )
+    .eq("documents.user_id", user.id)
     .order("created_at", { ascending: false });
 
   const summaries = (rows ?? [])
-    .filter(
-      (row) =>
-        row.documents !== null &&
-        (row.documents as unknown as { user_id: string }).user_id === user!.id,
-    )
     .map((row) => ({
       id: row.id,
       summary_type: row.summary_type,

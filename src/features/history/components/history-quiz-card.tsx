@@ -13,7 +13,7 @@ const DIFFICULTY_COLORS: Record<string, string> = {
 
 function ScoreBadge({ score, total }: { score: number | null; total: number | null }) {
   if (score === null || total === null) {
-    return <p className="text-xs text-slate-500">Not attempted</p>; // ← แก้
+    return <p className="text-xs text-slate-500">Not attempted</p>;
   }
 
   const pct = Math.round((score / total) * 100);

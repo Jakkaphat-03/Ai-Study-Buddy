@@ -35,8 +35,8 @@ export interface SavedQuiz {
   difficulty: string;
   content: Quiz;
   created_at: string;
-  score: number | null;  // ← เพิ่ม
-  total: number | null;  // ← เพิ่ม
+  score: number | null;
+  total: number | null;
 }
 
 // Request body สำหรับ PATCH /api/quiz

@@ -36,7 +36,7 @@ export function QuizForm({ summaries }: Props) {
     useState<QuizQuestionType>("multiple-choice");
   const [questionCount, setQuestionCount] = useState(10);
   const [quiz, setQuiz] = useState<Quiz | null>(null);
-  const [quizId, setQuizId] = useState<string | null>(null); // ← เพิ่ม
+  const [quizId, setQuizId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
 
@@ -44,7 +44,7 @@ export function QuizForm({ summaries }: Props) {
     startTransition(async () => {
       setError("");
       setQuiz(null);
-      setQuizId(null); // ← reset
+      setQuizId(null);
 
       try {
         const response = await fetch("/api/quiz", {
@@ -65,7 +65,7 @@ export function QuizForm({ summaries }: Props) {
         }
 
         setQuiz(result.quiz.content as Quiz);
-        setQuizId(result.quiz.id); // ← เพิ่ม
+        setQuizId(result.quiz.id);
       } catch (error) {
         setError(error instanceof Error ? error.message : "Unexpected error.");
       }
@@ -74,12 +74,12 @@ export function QuizForm({ summaries }: Props) {
 
   function handleRetry() {
     setQuiz(null);
-    setQuizId(null); // ← reset
+    setQuizId(null);
     setError("");
   }
 
   if (quiz && quizId) {
-    return <QuizResult quiz={quiz} quizId={quizId} onRetry={handleRetry} />; // ← ส่ง quizId
+    return <QuizResult quiz={quiz} quizId={quizId} onRetry={handleRetry} />;
   }
 
   return (

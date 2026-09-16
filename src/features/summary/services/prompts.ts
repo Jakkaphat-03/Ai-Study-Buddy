@@ -1,4 +1,6 @@
-export const SUMMARY_PROMPTS = {
+import type { SummaryType } from "@/features/summary/types/summary";
+
+export const SUMMARY_PROMPTS: Record<SummaryType, string> = {
   short: `
 Create a concise summary of the document in approximately 100 words.
 Focus only on the main ideas.
@@ -18,6 +20,6 @@ Each bullet should describe one important concept.
 Extract only the key concepts from the document.
 Return them as a numbered list with a short explanation.
 `,
-} as const;
+};
 
-export type SummaryType = keyof typeof SUMMARY_PROMPTS;
+export type { SummaryType };

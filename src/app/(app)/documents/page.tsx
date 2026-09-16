@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowUpRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,10 @@ export default async function DocumentsPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  if (!user) {
+    redirect("/login");
+  }
+
   const { data: rows } = await supabase
     .from("documents")
     .select(
@@ -26,7 +31,7 @@ export default async function DocumentsPage() {
       summaries(count)
     `,
     )
-    .eq("user_id", user!.id)
+    .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
   const documents: DocumentSummary[] = (rows ?? []).map((doc) => ({

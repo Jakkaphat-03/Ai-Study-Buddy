@@ -38,10 +38,22 @@ export function SummaryForm({ documentId }: Props) {
       try {
         const supabase = createClient();
 
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          setSummaries([]);
+          return;
+        }
+
+        // Scoped through the parent document so this query cannot be replayed
+        // from the browser console against somebody else's document id.
         const { data } = await supabase
           .from("summaries")
-          .select("id, summary_type, content, created_at")
+          .select("id, summary_type, content, created_at, documents!inner(user_id)")
           .eq("document_id", documentId)
+          .eq("documents.user_id", user.id)
           .order("created_at", { ascending: false });
 
         setSummaries(data ?? []);

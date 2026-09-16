@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 
+import { serverError } from "@/lib/api-error";
 import { createClient } from "@/lib/supabase/server";
+
+const deleteParamsSchema = z.object({
+  id: z.string().uuid("Invalid document id."),
+});
 
 // GET /api/documents — list all documents for the authenticated user
 export async function GET() {
@@ -32,7 +38,7 @@ export async function GET() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError("documents:list", error);
     }
 
     const result = (documents ?? []).map((doc) => ({
@@ -41,15 +47,13 @@ export async function GET() {
       file_type: doc.file_type,
       file_size: doc.file_size,
       created_at: doc.created_at,
-      summary_count: (doc.summaries as unknown as { count: number }[])?.[0]?.count ?? 0,
+      summary_count:
+        (doc.summaries as unknown as { count: number }[])?.[0]?.count ?? 0,
     }));
 
     return NextResponse.json(result);
-  } catch {
-    return NextResponse.json(
-      { error: "Unexpected server error." },
-      { status: 500 },
-    );
+  } catch (error) {
+    return serverError("documents:list", error);
   }
 }
 
@@ -68,20 +72,24 @@ export async function DELETE(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const documentId = searchParams.get("id");
+    const parsed = deleteParamsSchema.safeParse({ id: searchParams.get("id") });
 
-    if (!documentId) {
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Document ID is required." },
+        { error: parsed.error.issues[0]?.message ?? "Invalid request." },
         { status: 400 },
       );
     }
 
-    // Verify ownership before deleting
+    const documentId = parsed.data.id;
+
+    // Scope the lookup to the caller so a document owned by somebody else is
+    // indistinguishable from one that does not exist.
     const { data: document, error: fetchError } = await supabase
       .from("documents")
-      .select("id, file_url, user_id")
+      .select("id, file_url")
       .eq("id", documentId)
+      .eq("user_id", user.id)
       .single();
 
     if (fetchError || !document) {
@@ -91,40 +99,28 @@ export async function DELETE(request: Request) {
       );
     }
 
-    if (document.user_id !== user.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
     // Delete file from Supabase Storage
     const { error: storageError } = await supabase.storage
       .from("documents")
       .remove([document.file_url]);
 
     if (storageError) {
-      console.error("Storage deletion failed:", storageError.message);
+      console.error("[documents:delete-storage]", storageError.message);
     }
 
-    // Delete summaries first (foreign key constraint)
-    await supabase.from("summaries").delete().eq("document_id", documentId);
-
-    // Delete document row
+    // summaries and quizzes are removed by the ON DELETE CASCADE foreign key.
     const { error: deleteError } = await supabase
       .from("documents")
       .delete()
-      .eq("id", documentId);
+      .eq("id", documentId)
+      .eq("user_id", user.id);
 
     if (deleteError) {
-      return NextResponse.json(
-        { error: deleteError.message },
-        { status: 500 },
-      );
+      return serverError("documents:delete", deleteError);
     }
 
     return NextResponse.json({ success: true });
-  } catch {
-    return NextResponse.json(
-      { error: "Unexpected server error." },
-      { status: 500 },
-    );
+  } catch (error) {
+    return serverError("documents:delete", error);
   }
 }

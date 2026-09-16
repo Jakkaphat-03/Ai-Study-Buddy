@@ -11,3 +11,9 @@
 
 # TypeScript
 *.tsbuildinfo
+
+# build / archive artifacts
+*.zip
+
+# editor
+.DS_Store

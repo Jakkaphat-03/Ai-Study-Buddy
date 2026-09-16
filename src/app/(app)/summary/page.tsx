@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowUpRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,10 @@ export default async function SummaryPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  if (!user) {
+    redirect("/login");
+  }
+
   const { data: rows } = await supabase
     .from("summaries")
     .select(
@@ -28,14 +33,13 @@ export default async function SummaryPage() {
       summary_type,
       content,
       created_at,
-      documents(file_name)
+      documents!inner(file_name)
     `,
     )
-    .eq("documents.user_id", user!.id)
+    .eq("documents.user_id", user.id)
     .order("created_at", { ascending: false });
 
   const summaries = (rows ?? [])
-    .filter((row) => row.documents !== null)
     .map((row) => ({
       id: row.id,
       document_id: row.document_id,

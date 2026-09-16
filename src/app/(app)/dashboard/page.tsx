@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowUpRight, BookOpen, BrainCircuit, FileText } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
@@ -19,10 +20,14 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  if (!user) {
+    redirect("/login");
+  }
+
   const { data: documents } = await supabase
     .from("documents")
     .select("id,file_name,created_at")
-    .eq("user_id", user!.id)
+    .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(5);
 

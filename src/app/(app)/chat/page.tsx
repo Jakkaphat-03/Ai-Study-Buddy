@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { MessageCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -19,40 +20,33 @@ export default async function ChatPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  if (!user) {
+    redirect("/login");
+  }
+
   // Fetch documents that have at least one summary
   const { data: rows } = await supabase
     .from("summaries")
     .select(
       `
       document_id,
-      documents(id, file_name, user_id)
+      documents!inner(id, file_name)
     `,
     )
+    .eq("documents.user_id", user.id)
     .order("created_at", { ascending: false });
 
-  // Deduplicate by document_id + filter by ownership
+  // One entry per document, ordered by its most recent summary.
   const seen = new Set<string>();
   const documents = (rows ?? [])
-    .filter((row) => {
-      const doc = row.documents as unknown as {
-        id: string;
-        file_name: string;
-        user_id: string;
-      } | null;
-
-      if (!doc || doc.user_id !== user!.id) return false;
+    .map((row) => row.documents as unknown as { id: string; file_name: string })
+    .filter((doc) => {
       if (seen.has(doc.id)) return false;
 
       seen.add(doc.id);
       return true;
     })
-    .map((row) => {
-      const doc = row.documents as unknown as {
-        id: string;
-        file_name: string;
-      };
-      return { id: doc.id, file_name: doc.file_name };
-    });
+    .map((doc) => ({ id: doc.id, file_name: doc.file_name }));
 
   const hasDocuments = documents.length > 0;
 

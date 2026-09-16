@@ -1,62 +1,69 @@
 import { NextResponse } from "next/server";
 
+import { aiError, serverError } from "@/lib/api-error";
+import { rateLimitResponse } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { generateQuiz } from "@/features/quiz/services/generate-quiz";
-import type {
-  QuizDifficulty,
-  QuizQuestionType,
-} from "@/features/quiz/types/quiz";
+import {
+  generateQuizSchema,
+  saveQuizScoreSchema,
+} from "@/features/quiz/schemas/quiz-schema";
 
-export async function POST(request: Request) {
+async function readJson(request: Request): Promise<unknown | null> {
   try {
-    const supabase = await createClient();
+    return await request.json();
+  } catch {
+    return null;
+  }
+}
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+// POST /api/quiz — generate a quiz from an existing summary
+export async function POST(request: Request) {
+  const supabase = await createClient();
 
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
 
-    const body = await request.json();
+  if (authError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-    const summaryId = body.summaryId as string;
-    const difficulty = body.difficulty as QuizDifficulty;
-    const questionType = body.questionType as QuizQuestionType;
-    const questionCount = Number(body.questionCount);
+  const limited = rateLimitResponse("quiz", user.id);
 
-    if (!summaryId || !difficulty || !questionType || !questionCount) {
-      return NextResponse.json(
-        { error: "Missing required fields." },
-        { status: 400 },
-      );
-    }
+  if (limited) return limited;
 
-    // Fetch summary and verify ownership via document
+  const body = await readJson(request);
+
+  if (body === null) {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
+
+  const parsed = generateQuizSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Invalid request." },
+      { status: 400 },
+    );
+  }
+
+  const { summaryId, difficulty, questionType, questionCount } = parsed.data;
+
+  try {
+    // Ownership is enforced through the parent document, on top of RLS.
     const { data: summary, error: summaryError } = await supabase
       .from("summaries")
-      .select("id, content, document_id, documents(user_id)")
+      .select("id, content, document_id, documents!inner(user_id)")
       .eq("id", summaryId)
+      .eq("documents.user_id", user.id)
       .single();
 
     if (summaryError || !summary) {
-      return NextResponse.json(
-        { error: "Summary not found." },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: "Summary not found." }, { status: 404 });
     }
 
-    const documentOwner = (
-      summary.documents as unknown as { user_id: string }
-    )?.user_id;
-
-    if (documentOwner !== user.id) {
-      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
-    }
-
-    // Generate quiz from summary content
     const quiz = await generateQuiz(
       summary.content,
       difficulty,
@@ -64,7 +71,6 @@ export async function POST(request: Request) {
       questionCount,
     );
 
-    // Save quiz to database
     const { data: savedQuiz, error: insertError } = await supabase
       .from("quizzes")
       .insert({
@@ -76,101 +82,75 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) {
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
+      return serverError("quiz:insert", insertError);
     }
 
-    return NextResponse.json({
-      success: true,
-      quiz: savedQuiz,
-    });
+    return NextResponse.json({ success: true, quiz: savedQuiz });
   } catch (error) {
-    console.error("========== QUIZ ERROR ==========");
-    console.error(error);
-    console.error("================================");
-
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Unexpected server error.",
-      },
-      { status: 500 },
-    );
+    return aiError("quiz", error);
   }
 }
 
-// ← เพิ่มตรงนี้
+// PATCH /api/quiz — save the score for a completed quiz
 export async function PATCH(request: Request) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const limited = rateLimitResponse("quiz-score", user.id, {
+    limit: 30,
+    windowMs: 60_000,
+  });
+
+  if (limited) return limited;
+
+  const body = await readJson(request);
+
+  if (body === null) {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
+
+  const parsed = saveQuizScoreSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Invalid request." },
+      { status: 400 },
+    );
+  }
+
+  const { quizId, score, total } = parsed.data;
+
   try {
-    const supabase = await createClient();
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const body = await request.json();
-    const { quizId, score, total } = body as {
-      quizId: string;
-      score: number;
-      total: number;
-    };
-
-    if (!quizId || score === undefined || total === undefined) {
-      return NextResponse.json(
-        { error: "Missing required fields." },
-        { status: 400 },
-      );
-    }
-
-    // Verify ownership via document → quizzes RLS จะ block อยู่แล้ว
-    // แต่ verify ซ้ำฝั่ง app layer เพื่อความปลอดภัย
     const { data: quiz, error: quizError } = await supabase
       .from("quizzes")
-      .select("id, document_id, documents(user_id)")
+      .select("id, documents!inner(user_id)")
       .eq("id", quizId)
+      .eq("documents.user_id", user.id)
       .single();
 
     if (quizError || !quiz) {
       return NextResponse.json({ error: "Quiz not found." }, { status: 404 });
     }
 
-    const documentOwner = (
-      quiz.documents as unknown as { user_id: string }
-    )?.user_id;
-
-    if (documentOwner !== user.id) {
-      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
-    }
-
-    // Update score
     const { error: updateError } = await supabase
       .from("quizzes")
       .update({ score, total })
       .eq("id", quizId);
 
     if (updateError) {
-      return NextResponse.json(
-        { error: updateError.message },
-        { status: 500 },
-      );
+      return serverError("quiz:update-score", updateError);
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("========== QUIZ PATCH ERROR ==========");
-    console.error(error);
-    console.error("======================================");
-
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Unexpected server error.",
-      },
-      { status: 500 },
-    );
+    return serverError("quiz:patch", error);
   }
 }
